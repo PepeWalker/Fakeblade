@@ -2,7 +2,7 @@ using UnityEngine;
 
 
 //BaybladeTypes.cs - Tipos de beyblades
-public enum BeybladeType
+public enum BeybladeTypes
 {
     Attack, //ligero pero alta velocidad y ataque
     Defense, //pesado, estable y buen ataque pero muy poca velocidad
