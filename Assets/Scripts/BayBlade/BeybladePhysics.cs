@@ -1,47 +1,61 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 [RequireComponent(typeof(Rigidbody))]
 public class BeyBladePhysics : MonoBehaviour
 {
     [Header("Physics Components")]
     public Rigidbody rb;
-    public Transform spinMesh;
+    public Transform spinMesh; // Solo para visualización
 
     [Header("Physics Settings")]
     public float gyroscopicForce = 10f;
     public float stabilizationForce = 5f;
+    public float smoothStabilizator = 0.1f;
+    public float maxTiltAngle = 15f; // Máximo ángulo de inclinación
     public LayerMask arenaLayer = 1;
 
+    [Header("Spin Settings")]
+    public static float SPIN_MULTI_NUM = 2f;
+    public float spinDecayRate = 0f; // Velocidad de pérdida de giro
+
     private BeyBladeStats stats;
-    private float currentSpinSpeed;
+    private float currentSpinSpeed; // RPM visual
+    private float actualSpinVelocity; // Velocidad real de giro
     private Vector3 lastVelocity;
+    private BeyBladeController controller;
 
-    public void Initialize(BeyBladeStats bladStats)
+    public void Initialize(BeyBladeStats bladeStats)
     {
-        stats = bladStats;
+        stats = bladeStats;
         rb = GetComponent<Rigidbody>();
+        controller = GetComponent<BeyBladeController>();
 
-        // Configurar propiedades f�sicas
+        // Configurar propiedades físicas
         rb.mass = stats.mass;
         rb.linearDamping = 0.5f;
-        rb.angularDamping = 1f;
+        rb.angularDamping = 0.3f; // REDUCIDO para mejor giro
 
-        // Iniciar rotaci�n
+        // Iniciar rotación
         StartSpin();
     }
 
     private void FixedUpdate()
     {
         ApplyGyroscopicEffect();
-        ApplyStabilization();
+        ApplySmartStabilization(); // NUEVO MÉTODO
+        UpdateSpinDecay();
         UpdateSpinVisualization();
         HandleArenaCollision();
     }
 
     public void StartSpin()
     {
-        currentSpinSpeed = stats.spinForce;
-        rb.angularVelocity = Vector3.up * currentSpinSpeed;
+        actualSpinVelocity = stats.spinForce;
+        currentSpinSpeed = actualSpinVelocity;
+
+        // NO aplicar angularVelocity al rigidbody, solo visual
+        // rb.angularVelocity = Vector3.up * currentSpinSpeed; // COMENTADO
     }
 
     public void ApplyMovement(Vector2 input)
@@ -52,15 +66,16 @@ public class BeyBladePhysics : MonoBehaviour
 
     public void ExecuteAttack()
     {
-        // Aumentar masa temporalmente para el ataque
+        // Aumentar masa temporalmente
+        float originalMass = rb.mass;
         rb.mass += stats.attackPower * 0.1f;
 
-        // Aplicar fuerza de ataque
+        // Aplicar fuerza hacia adelante
         Vector3 attackDirection = transform.forward;
         rb.AddForce(attackDirection * stats.attackPower, ForceMode.Impulse);
 
-        // Restaurar masa despu�s del ataque
-        Invoke(nameof(RestoreMass), 0.2f);
+        // Restaurar masa
+        StartCoroutine(RestoreMassCoroutine(originalMass, 0.2f));
     }
 
     public void ExecuteDash()
@@ -72,54 +87,117 @@ public class BeyBladePhysics : MonoBehaviour
         rb.AddForce(dashDirection * stats.dashPower, ForceMode.Impulse);
     }
 
-    private void ApplyGyroscopicEffect()
+    // NUEVO: Método de estabilización inteligente
+    private void ApplySmartStabilization()
     {
-        // Simular efecto girosc�pico para estabilidad
-        Vector3 gyroscopicTorque = Vector3.Cross(transform.up, rb.angularVelocity) * gyroscopicForce;
-        rb.AddTorque(gyroscopicTorque, ForceMode.Acceleration);
+        // Solo estabilizar si está muy inclinado
+        Vector3 upDirection = transform.up;
+        float tiltAngle = Vector3.Angle(upDirection, Vector3.up);
+
+        if (tiltAngle > maxTiltAngle) 
+        {
+            
+            Vector3 targetUp = Vector3.up;
+            Vector3 torqueAxis = Vector3.Cross(upDirection, targetUp);
+
+            // Solo aplica torque en X y Z, NO en Y
+            torqueAxis.y = 0;
+
+            float torqueMagnitude = tiltAngle * stabilizationForce * smoothStabilizator; //smoothStabilizator para suavizar el efecto de estabilizarse
+            rb.AddTorque(torqueAxis.normalized * torqueMagnitude, ForceMode.Acceleration);
+        }
     }
 
-    private void ApplyStabilization()
+    private void ApplyGyroscopicEffect()
     {
-        // Mantener el trompo erguido
-        Vector3 stabilizationTorque = Vector3.Cross(transform.up, Vector3.up) * stabilizationForce;
-        rb.AddTorque(stabilizationTorque, ForceMode.Acceleration);
+       
+
+
+        // Efecto giroscópico basado en spin actual
+        //Funciona mal
+        
+        if (actualSpinVelocity > 0)
+        {
+            Vector3 spinAxis = Vector3.up;
+            Vector3 angularMomentum = spinAxis * actualSpinVelocity;
+
+            // Aplicar efecto giroscópico para resistir cambios de orientación
+            Vector3 gyroscopicTorque = Vector3.Cross(rb.angularVelocity, angularMomentum) * gyroscopicForce * 0.01f;
+
+            // Solo en X y Z, preservar Y
+            gyroscopicTorque.y = 0;
+            rb.AddTorque(gyroscopicTorque, ForceMode.Acceleration);
+        }
+        
+    }
+
+    // Sistema de pérdida de giro separado, por defecto estará a 0, en modos supervivencia se puede poner un valor
+    private void UpdateSpinDecay()
+    {
+        if (actualSpinVelocity > 0)
+        {
+            // Pérdida natural de giro
+            float decay = spinDecayRate * Time.fixedDeltaTime;
+            actualSpinVelocity = Mathf.Max(0, actualSpinVelocity - decay);
+
+            // Actualizar RPM del controlador
+            if (controller != null)
+            {
+                float rpmPercentage = actualSpinVelocity / stats.spinForce;
+                controller.currentRPM = controller.stats.maxRPM * rpmPercentage;
+            }
+        }
     }
 
     private void UpdateSpinVisualization()
     {
-        if (spinMesh != null)
+        if (spinMesh != null && actualSpinVelocity > 0)
         {
-            currentSpinSpeed = Mathf.Lerp(currentSpinSpeed, rb.angularVelocity.magnitude, Time.fixedDeltaTime);
-            spinMesh.Rotate(0, currentSpinSpeed * Time.fixedDeltaTime * Mathf.Rad2Deg, 0, Space.Self);
+            // Suavizar la velocidad visual
+            currentSpinSpeed = Mathf.Lerp(currentSpinSpeed, actualSpinVelocity, Time.fixedDeltaTime * 2f);
+
+            // Rotar SOLO el mesh visual, no el rigidbody
+            float rotationSpeed = currentSpinSpeed * Time.fixedDeltaTime * Mathf.Rad2Deg * SPIN_MULTI_NUM;
+            spinMesh.Rotate(0, rotationSpeed, 0, Space.Self);
         }
     }
 
     private void HandleArenaCollision()
     {
-        // Detectar si est� tocando la arena
         if (Physics.Raycast(transform.position, Vector3.down, 0.1f, arenaLayer))
         {
-            // Aplicar fricci�n de la arena
             rb.linearDamping = 0.5f;
         }
         else
         {
-            // En el aire, menos resistencia
             rb.linearDamping = 0.1f;
         }
     }
 
     public void SetDefeated()
     {
-        // Detener el trompo gradualmente
+        actualSpinVelocity = 0;
         rb.angularVelocity *= 0.1f;
         rb.linearVelocity *= 0.1f;
     }
 
-    private void RestoreMass()
+    // NUEVO: Método para añadir/quitar spin
+    public void ModifySpinVelocity(float amount)
     {
-        rb.mass = stats.mass;
+        actualSpinVelocity = Mathf.Max(0, actualSpinVelocity + amount);
+    }
+
+    // NUEVO: Obtener velocidad de giro actual
+    public float GetCurrentSpinVelocity()
+    {
+        return actualSpinVelocity;
+    }
+
+    // Corrutina para restaurar masa
+    private System.Collections.IEnumerator RestoreMassCoroutine(float originalMass, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        rb.mass = originalMass;
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -127,10 +205,24 @@ public class BeyBladePhysics : MonoBehaviour
         if (collision.gameObject.CompareTag("BeyBlade"))
         {
             BeyBladeController otherBlade = collision.gameObject.GetComponent<BeyBladeController>();
-            if (otherBlade != null)
+            if (otherBlade != null && CombatSystem.Instance != null)
             {
                 CombatSystem.Instance.HandleCollision(GetComponent<BeyBladeController>(), otherBlade, collision);
             }
+        }
+    }
+
+    // GIZMOS para debug
+    private void OnDrawGizmosSelected()
+    {
+        // Mostrar dirección de giro
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, 0.1f);
+
+        if (actualSpinVelocity > 0)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawRay(transform.position, Vector3.up * (actualSpinVelocity / 100f));
         }
     }
 }

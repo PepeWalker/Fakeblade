@@ -12,7 +12,7 @@ public class BeyBladeController : MonoBehaviour
     [Header("Player Info")]
     public int playerIndex;
     public string playerName;
-    public Color playerColor = Color.white;
+    public Color playerColor = Color.red;
 
     [Header("Combat")]
     public float currentRPM;
