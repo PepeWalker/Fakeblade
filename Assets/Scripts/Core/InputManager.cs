@@ -39,7 +39,16 @@ public class InputManager : MonoBehaviour
 
     private void SetupDefaultControls(int maxPlayers)
     {
-        // Jugador 1 - Teclado
+        //cuando se haga la pantalla de pre batalla, ahi se seleccionará los controles o en opciones y se guardará que se ha elegido.
+        
+        // Jugador 1 - Mando
+        playerInputs[0] = new PlayerInput
+        {
+            useGamepad = true,
+            gamepadIndex = 0
+        };
+        /*
+         // Jugador 1 - Teclado
         playerInputs[0] = new PlayerInput
         {
             attackKey = KeyCode.Space,
@@ -68,6 +77,7 @@ public class InputManager : MonoBehaviour
                 gamepadIndex = i - 2
             };
         }
+        */
     }
 
     public Vector2 GetMovementInput(int playerIndex)

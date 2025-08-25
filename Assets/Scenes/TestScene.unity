@@ -1784,8 +1784,8 @@ MonoBehaviour:
   activePlayers: []
   battleManager: {fileID: 0}
   uiManager: {fileID: 0}
-  audioManager: {fileID: 0}
-  inputManager: {fileID: 0}
+  audioManager: {fileID: 2052257848}
+  inputManager: {fileID: 940576445}
   currentState: 3
 --- !u!4 &940576447
 Transform:
@@ -2150,9 +2150,9 @@ MonoBehaviour:
   currentRPM: 0
   attackCharges: 0
   specialPower: 0
-  attackKey: 32
-  dashKey: 304
-  specialKey: 122
+  dashCooldownTime: 1.5
+  attackCooldownTime: 0.5
+  chargeRecoveryRate: 1
   currentState: 0
 --- !u!4 &1349342429
 Transform:
@@ -2689,9 +2689,9 @@ MonoBehaviour:
   currentRPM: 0
   attackCharges: 0
   specialPower: 0
-  attackKey: 32
-  dashKey: 304
-  specialKey: 122
+  dashCooldownTime: 1.5
+  attackCooldownTime: 0.5
+  chargeRecoveryRate: 1
   currentState: 0
 --- !u!1 &1883719590
 GameObject:

@@ -51,4 +51,16 @@ public class AudioManager : MonoBehaviour
         if (dashSound != null && sfxSource != null)
             sfxSource.PlayOneShot(dashSound);
     }
+
+    public void PlayCollisionSound(float intensity, AudioClip customClip = null)
+    {
+        // Implementar reproducción de sonido de colisión
+    }
+
+    public void ApplyEffect(BeyBladeController blade)
+    {
+        // Implementar efectos de zona de arena
+        // recuperar RPM, añadir poder especial, etc...
+    }
+
 }

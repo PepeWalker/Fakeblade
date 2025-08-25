@@ -8,6 +8,11 @@ public class CombatSystem : MonoBehaviour
     public float impactForceMultiplier = 2f;
     public float rpmLossMultiplier = 1f;
 
+    [Header("Particle Effects")]
+    public ParticleSystem globalCollisionEffect; // Efecto global de colisiones
+    public AudioClip[] collisionSounds;
+
+
     private void Awake()
     {
         if (Instance == null)
@@ -34,22 +39,58 @@ public class CombatSystem : MonoBehaviour
         BeyBladeController stronger = blade1Speed > blade2Speed ? blade1 : blade2;
         BeyBladeController weaker = blade1Speed > blade2Speed ? blade2 : blade1;
 
-        // Calcular da�o
+        // Calcular daño e intensidad
         float speedDifference = Mathf.Abs(blade1Speed - blade2Speed);
         float damage = speedDifference * rpmLossMultiplier;
+        float impactIntensity = speedDifference / 10f; // Normalizar para efectos
 
-        // Aplicar da�o al m�s d�bil
+        // Aplicar daño al más débil
         weaker.ModifyRPM(-damage);
 
-        // Efectos visuales y audio
-        PlayCollisionEffects(impactPoint);
-        AudioManager.Instance?.PlayCollisionSound(speedDifference);
+        // Efectos visuales y de partículas
+        PlayCollisionEffects(impactPoint, collision.contacts[0].normal, impactIntensity);
 
-        Debug.Log($"Collision: {stronger.name} vs {weaker.name} - Damage: {damage}");
+        // Efectos específicos en cada BeyBlade
+        blade1.GetParticleManager()?.PlayCollisionSparks(impactPoint, impactIntensity);
+        blade2.GetParticleManager()?.PlayCollisionSparks(impactPoint, impactIntensity);
+
+        // Audio
+        PlayCollisionAudio(impactIntensity);
+
+        Debug.Log($"Collision: {stronger.name} vs {weaker.name} - Damage: {damage} - Intensity: {impactIntensity}");
+
     }
 
-    private void PlayCollisionEffects(Vector3 position)
+
+    private void PlayCollisionEffects(Vector3 position, Vector3 normal, float intensity)
     {
-        // Aqu� puedes agregar efectos de part�culas en el punto de impacto
+        // Efecto global de colisión
+        if (globalCollisionEffect != null)
+        {
+            globalCollisionEffect.transform.position = position;
+            globalCollisionEffect.transform.LookAt(position + normal);
+
+            var main = globalCollisionEffect.main;
+            main.startSpeed = intensity * 8f;
+
+            var emission = globalCollisionEffect.emission;
+            int particleCount = Mathf.RoundToInt(intensity * 30f);
+            emission.SetBursts(new ParticleSystem.Burst[] {
+                new ParticleSystem.Burst(0f, (short)Mathf.Clamp(particleCount, 15, 80))
+            });
+
+            globalCollisionEffect.Play();
+        }
+    }
+
+    private void PlayCollisionAudio(float intensity)
+    {
+        if (collisionSounds != null && collisionSounds.Length > 0 && AudioManager.Instance != null)
+        {
+            int soundIndex = Mathf.RoundToInt(intensity * (collisionSounds.Length - 1));
+            soundIndex = Mathf.Clamp(soundIndex, 0, collisionSounds.Length - 1);
+
+            AudioManager.Instance.PlayCollisionSound(intensity, collisionSounds[soundIndex]);
+        }
     }
 }

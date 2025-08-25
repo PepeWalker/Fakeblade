@@ -1,3 +1,4 @@
+using Unity.VisualScripting.Antlr3.Runtime.Misc;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "New BeyBlade Stats", menuName = "BeyBlade/Stats")]
@@ -27,6 +28,10 @@ public class BeyBladeStats : ScriptableObject
     [Header("Special Power")]
     public SpecialPowerType specialType;
     public string specialName = "Default Special";
+
+    [Header("Speed Settings")]
+    public float baseMaxSpeed = 8f;        // Velocidad base según tipo
+    public float speedMultiplier = 1f;     // Multiplicador por tipo de BeyBlade
 
     public enum BeyBladeType
     {
@@ -58,6 +63,7 @@ public class BeyBladeStats : ScriptableObject
                 break;
         }
     }
+
 
     private void ExecuteFireTrail(BeyBladeController controller)
     {
