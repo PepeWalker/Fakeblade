@@ -1,3 +1,5 @@
+using Unity.VisualScripting;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static BeyBladeStats;
@@ -32,6 +34,10 @@ public class BeyBladePhysics : MonoBehaviour
     private float actualSpinVelocity; // Velocidad real de giro
     private Vector3 lastVelocity;
     private BeyBladeController controller;
+
+    [Header("Collision Detection")]
+    public float collisionCooldown = 0.1f; // Evitar múltiples colisiones muy rápidas
+    private float lastCollisionTime = 0f;
 
     // Control de velocidad
     private float currentMaxSpeed;
@@ -389,13 +395,59 @@ public class BeyBladePhysics : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
+        // Verificar cooldown para evitar spam de partículas
+    if (Time.time - lastCollisionTime < collisionCooldown)
+            return;
+
         if (collision.gameObject.CompareTag("BeyBlade"))
         {
             BeyBladeController otherBlade = collision.gameObject.GetComponent<BeyBladeController>();
             if (otherBlade != null && CombatSystem.Instance != null)
             {
+                // Calcular intensidad de colisión
+                float impactIntensity = CalculateCollisionIntensity(collision);
+
+                // Llamar al sistema de combate
                 CombatSystem.Instance.HandleCollision(GetComponent<BeyBladeController>(), otherBlade, collision);
+
+                lastCollisionTime = Time.time;
             }
+        }
+
+        // Colisiones con arena u otros objetos
+        else if (collision.gameObject.CompareTag("Arena"))
+        {
+            HandleArenaImpact(collision);
+        }
+    }
+
+    private float CalculateCollisionIntensity(Collision collision)
+    {
+        // Calcular intensidad basada en velocidad relativa
+        Vector3 relativeVelocity = rb.linearVelocity;
+        if (collision.rigidbody != null)
+            relativeVelocity -= collision.rigidbody.linearVelocity;
+
+        float intensity = relativeVelocity.magnitude;
+
+        // También considerar la masa para el cálculo
+        float combinedMass = rb.mass;
+        if (collision.rigidbody != null)
+            combinedMass += collision.rigidbody.mass;
+
+        intensity *= (combinedMass / 4f); // Normalizar para masas típicas de 2-4
+
+        return intensity;
+    }
+
+    private void HandleArenaImpact(Collision collision)
+    {
+        // Partículas menores para impactos contra la arena
+        float impactForce = rb.linearVelocity.magnitude;
+        if (impactForce > 3f && controller?.GetParticleManager() != null)
+        {
+            Vector3 contactPoint = collision.contacts[0].point;
+            controller.GetParticleManager().PlayCollisionSparks(contactPoint, impactForce * 0.3f);
         }
     }
 

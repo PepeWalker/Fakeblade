@@ -31,6 +31,8 @@ public class BeyBladeController : MonoBehaviour
     private float attackCooldownTimer = 0f;
     private float chargeRecoveryTimer = 0f;
 
+
+
     // Propiedades públicas para verificar estado
     public bool IsDefeated => currentState == BeyBladeState.Defeated;
     public bool CanAttack => attackCharges > 0 && currentState == BeyBladeState.Active && attackCooldownTimer <= 0;
@@ -77,7 +79,7 @@ public class BeyBladeController : MonoBehaviour
         // Inicializar partículas si existe el componente
         if (particleManager != null)
         {
-            particleManager.Initialize(playerColor, this);
+            particleManager = GetComponent<ParticleManager>();
         }
 
         // Registrarse en el GameManager
@@ -153,7 +155,7 @@ public class BeyBladeController : MonoBehaviour
         // Efectos de partículas
         if (particleManager != null)
         {
-            particleManager.PlaySparkEffect(transform.position, transform.forward, 1f);
+            //particleManager.PlaySparkEffect(transform.position, transform.forward, 1f);
         }
 
         // Eventos y audio
@@ -187,7 +189,7 @@ public class BeyBladeController : MonoBehaviour
         // Efectos de partículas de dash
         if (particleManager != null)
         {
-            particleManager.PlayDashEffect(dashDirection);
+            //particleManager.PlayDashEffect(dashDirection);
         }
 
         // Eventos
@@ -214,7 +216,7 @@ public class BeyBladeController : MonoBehaviour
             // Efectos de partículas especiales
             if (particleManager != null)
             {
-                particleManager.PlaySpecialAttackEffect(stats.specialName);
+                //particleManager.PlaySpecialAttackEffect(stats.specialName);
             }
 
             OnSpecialActivated?.Invoke(this);
@@ -277,7 +279,7 @@ public class BeyBladeController : MonoBehaviour
         // Efectos de derrota
         if (particleManager != null)
         {
-            particleManager.PlayDefeatEffect();
+            //particleManager.PlayDefeatEffect();
         }
 
         OnDefeated?.Invoke(this);

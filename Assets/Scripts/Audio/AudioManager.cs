@@ -7,6 +7,7 @@ public class AudioManager : MonoBehaviour
     [Header("Audio Sources")]
     public AudioSource sfxSource;
     public AudioSource musicSource;
+    public AudioSource collisionAudioSource;
 
     [Header("Sound Effects")]
     public AudioClip attackSound;
@@ -29,6 +30,7 @@ public class AudioManager : MonoBehaviour
     public void Initialize()
     {
         // Configuración inicial
+        Debug.Log("AudioManager initialized");
     }
 
     public void PlayAttackSound()
@@ -37,12 +39,22 @@ public class AudioManager : MonoBehaviour
             sfxSource.PlayOneShot(attackSound);
     }
 
-    public void PlayCollisionSound(float intensity)
+    public void PlayCollisionSound(float intensity, AudioClip soundClip)
     {
-        if (collisionSound != null && sfxSource != null)
+        if (collisionAudioSource != null && soundClip != null)
         {
-            sfxSource.volume = Mathf.Clamp01(intensity / 10f);
-            sfxSource.PlayOneShot(collisionSound);
+            // Ajustar volumen basado en intensidad
+            float volume = Mathf.Clamp01(intensity / 10f);
+
+            // Ajustar pitch ligeramente para variedad
+            float pitch = Random.Range(0.9f, 1.1f);
+
+            collisionAudioSource.clip = soundClip;
+            collisionAudioSource.volume = volume;
+            collisionAudioSource.pitch = pitch;
+            collisionAudioSource.Play();
+
+            Debug.Log($"Playing collision sound - Volume: {volume:F2}, Pitch: {pitch:F2}");
         }
     }
 
@@ -52,10 +64,7 @@ public class AudioManager : MonoBehaviour
             sfxSource.PlayOneShot(dashSound);
     }
 
-    public void PlayCollisionSound(float intensity, AudioClip customClip = null)
-    {
-        // Implementar reproducción de sonido de colisión
-    }
+    
 
     public void ApplyEffect(BeyBladeController blade)
     {
