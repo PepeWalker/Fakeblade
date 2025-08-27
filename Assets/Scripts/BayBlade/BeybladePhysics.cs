@@ -229,7 +229,7 @@ public class BeyBladePhysics : MonoBehaviour
         float originalMass = rb.mass;
         rb.mass += stats.attackPower * 0.1f;
 
-        // Aplicar fuerza hacia adelante
+        // Aplicar fuerza hacia adelante (el controller ya ha ajustado transform.forward)
         Vector3 attackDirection = transform.forward;
         rb.AddForce(attackDirection * stats.attackPower, ForceMode.Impulse);
 
@@ -238,19 +238,48 @@ public class BeyBladePhysics : MonoBehaviour
 
         // Restaurar masa
         StartCoroutine(RestoreMassCoroutine(originalMass, 0.2f));
+
+        Debug.Log($"Attack executed in direction: {attackDirection}");
     }
 
     public void ExecuteDash()
     {
-        Vector3 dashDirection = rb.linearVelocity.normalized;
-        if (dashDirection == Vector3.zero)
-            dashDirection = transform.forward;
+        // Usar la dirección ya establecida por el controller
+        Vector3 dashDirection = transform.forward;
 
         rb.AddForce(dashDirection * stats.dashPower, ForceMode.Impulse);
 
         // Permitir velocidad temporal más alta tras dash
         SetTemporarySpeedBoost(maxDashSpeed, 3f);
+
+        Debug.Log($"Dash executed in direction: {dashDirection}");
     }
+
+
+    public void ExecuteChargedAttack(float chargePercentage)
+    {
+        // Aumentar masa temporalmente (más que un ataque normal)
+        float originalMass = rb.mass;
+        float massBonus = stats.attackPower * 0.2f * (1f + chargePercentage);
+        rb.mass += massBonus;
+
+        // Calcular potencia del ataque cargado
+        float attackPower = stats.attackPower * (1f + chargePercentage);
+
+        // Aplicar fuerza hacia adelante
+        Vector3 attackDirection = transform.forward;
+        rb.AddForce(attackDirection * attackPower, ForceMode.Impulse);
+
+        // Permitir velocidad temporal más alta tras ataque cargado
+        float maxSpeedBonus = maxAttackSpeed * (1f + chargePercentage * 0.5f);
+        SetTemporarySpeedBoost(maxSpeedBonus, 3f);
+
+        // Restaurar masa
+        StartCoroutine(RestoreMassCoroutine(originalMass, 0.3f));
+
+        Debug.Log($"Charged attack executed with {chargePercentage:F2} charge and {attackPower:F1} power");
+    }
+
 
     //Método para establecer boosts temporales de velocidad
     public void SetTemporarySpeedBoost(float newMaxSpeed, float duration)

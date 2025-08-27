@@ -3616,7 +3616,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   collisionSparks: {fileID: 333335716}
   trailParticles: {fileID: 333335716}
-  minIntensityForSparks: 2
+  minIntensityForSparks: 1
   maxSparkIntensity: 10
   minSparkCount: 10
   maxSparkCount: 50
