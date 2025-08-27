@@ -424,26 +424,30 @@ public class BeyBladePhysics : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        // Verificar cooldown para evitar spam de partículas
-    if (Time.time - lastCollisionTime < collisionCooldown)
+        // Verificar cooldown
+        if (Time.time - lastCollisionTime < collisionCooldown)
             return;
 
         if (collision.gameObject.CompareTag("BeyBlade"))
         {
             BeyBladeController otherBlade = collision.gameObject.GetComponent<BeyBladeController>();
-            if (otherBlade != null && CombatSystem.Instance != null)
+            if (otherBlade != null && otherBlade != controller) // Evitar auto-colisión
             {
-                // Calcular intensidad de colisión
-                float impactIntensity = CalculateCollisionIntensity(collision);
+                // Verificar que CombatSystem existe
+                if (CombatSystem.Instance != null)
+                {
+                    // Llamar al sistema de combate que maneja todo
+                    CombatSystem.Instance.HandleCollision(controller, otherBlade, collision);
+                    lastCollisionTime = Time.time;
 
-                // Llamar al sistema de combate
-                CombatSystem.Instance.HandleCollision(GetComponent<BeyBladeController>(), otherBlade, collision);
-
-                lastCollisionTime = Time.time;
+                    Debug.Log($"BeyBlade collision detected: {gameObject.name} vs {otherBlade.name}");
+                }
+                else
+                {
+                    Debug.LogError("CombatSystem.Instance is null!");
+                }
             }
         }
-
-        // Colisiones con arena u otros objetos
         else if (collision.gameObject.CompareTag("Arena"))
         {
             HandleArenaImpact(collision);
