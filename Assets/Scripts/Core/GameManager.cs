@@ -54,7 +54,7 @@ public class GameManager : MonoBehaviour
         // Inicializar sistemas
         inputManager.Initialize(maxPlayers);
         audioManager.Initialize();
-        uiManager.Initialize();
+        //uiManager.Initialize();
     }
 
     public void StartBattle()
