@@ -66,12 +66,18 @@ public class GameManager : MonoBehaviour
     public void InitializeGame()
     {
         // Inicializar sistemas
+<<<<<<< HEAD
         if (inputManager != null) inputManager.Initialize(maxPlayers);
         if (audioManager != null) audioManager.Initialize();
         if (uiManager != null) uiManager.Initialize();
 
 
         Debug.Log("Game initialized successfully");
+=======
+        inputManager.Initialize(maxPlayers);
+        audioManager.Initialize();
+        uiManager.Initialize();
+>>>>>>> parent of 67e279e (cambios en particulas y fisicas)
     }
 
     public void StartBattle()
