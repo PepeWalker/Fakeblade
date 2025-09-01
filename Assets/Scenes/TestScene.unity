@@ -2589,7 +2589,7 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   hudContainers:
-  - {fileID: 0}
+  - {fileID: 1032480677}
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
@@ -2600,16 +2600,16 @@ MonoBehaviour:
   - {fileID: 0}
   battleTimerText: {fileID: 0}
   battleTimerSlider: {fileID: 0}
-  countdownPanel: {fileID: 0}
+  countdownPanel: {fileID: 866298321}
   countdownText: {fileID: 0}
   victoryPanel: {fileID: 0}
   winnerText: {fileID: 0}
   playAgainButton: {fileID: 0}
   mainMenuButton: {fileID: 0}
-  pausePanel: {fileID: 0}
-  resumeButton: {fileID: 0}
-  pauseOptionsButton: {fileID: 0}
-  pauseMainMenuButton: {fileID: 0}
+  pausePanel: {fileID: 984910218}
+  resumeButton: {fileID: 205388238}
+  pauseOptionsButton: {fileID: 1915797033}
+  pauseMainMenuButton: {fileID: 2074263529}
   optionsPanel: {fileID: 0}
   masterVolumeSlider: {fileID: 0}
   musicVolumeSlider: {fileID: 0}
@@ -4747,7 +4747,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -18.3244, y: 433.04}
+  m_AnchoredPosition: {x: -18.32434, y: 433.04}
   m_SizeDelta: {x: -1662.6912, y: -866.07}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &866298323
@@ -5026,11 +5026,11 @@ MonoBehaviour:
   enableTimeLimit: 0
   activePlayers: []
   spawnPoints: []
-  battleManager: {fileID: 0}
-  uiManager: {fileID: 0}
+  battleManager: {fileID: 1309793547}
+  uiManager: {fileID: 480390567}
   audioManager: {fileID: 2052257848}
   inputManager: {fileID: 940576445}
-  arenaController: {fileID: 0}
+  arenaController: {fileID: 1946509062}
   victoryCondition: 0
   currentState: 3
 --- !u!4 &940576447
@@ -5084,7 +5084,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.000061035156, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: -1226.7649, y: -148.5236}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &962493444
@@ -5158,6 +5158,7 @@ Transform:
   - {fileID: 940576447}
   - {fileID: 1786893850}
   - {fileID: 480390566}
+  - {fileID: 1309793546}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &978866185
@@ -6193,6 +6194,56 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1288408332}
   m_CullTransparentMesh: 1
+--- !u!1 &1309793545
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1309793546}
+  - component: {fileID: 1309793547}
+  m_Layer: 0
+  m_Name: BattleManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1309793546
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1309793545}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 978189115}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1309793547
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1309793545}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5339162413e2ba140bbc6435516b4806, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  battlePrepTime: 3
+  enableTeamBattle: 0
+  teamSize: 2
+  currentBattleMode: 0
+  battleStartEffect: {fileID: 0}
+  battleEndEffect: {fileID: 0}
 --- !u!1 &1349342424
 GameObject:
   m_ObjectHideFlags: 0
@@ -9309,14 +9360,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 935b8b060d9c9414a9ce3986823b97e4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  arenaRadius: 10
+  arenaRadius: 7.12
   arenaCenter: {fileID: 1946509061}
   beybladeLayer:
     serializedVersion: 2
     m_Bits: 4294967295
   enableKnockout: 1
   knockoutHeight: -2
-  bounceForce: 500
+  bounceForce: 600
   damageOnBoundaryHit: 50
   specialZones: []
   boundaryHitEffect: {fileID: 333335716}

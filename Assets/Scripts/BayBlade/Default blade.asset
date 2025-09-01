@@ -23,7 +23,14 @@ MonoBehaviour:
   maxAttackCharges: 3
   chargeRecoveryTime: 2
   movementSpeed: 4
-  dashPower: 200
+  dashPower: 100
   dashCost: 50
   specialType: 0
   specialName: Fire Trail
+  spinSound: {fileID: 0}
+  attackSound: {fileID: 0}
+  dashSound: {fileID: 0}
+  specialSound: {fileID: 0}
+  particleEffects: {fileID: 0}
+  trailMaterial: {fileID: 0}
+  bladeColor: {r: 1, g: 1, b: 1, a: 1}
