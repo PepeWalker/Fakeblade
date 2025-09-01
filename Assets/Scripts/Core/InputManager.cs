@@ -52,14 +52,14 @@ public class InputManager : MonoBehaviour
             }
         }
 
-        // Update controller inputs
+        // Update controller inputs using standard Unity input axes
         if (allowControllers)
         {
-            for (int i = 0; i < 4; i++) // Unity supports up to 4 controllers
+            for (int i = 0; i < 4; i++)
             {
                 if (i < registeredPlayers.Count)
                 {
-                    UpdateControllerInput(i);
+                    UpdateControllerInputStandard(i);
                 }
             }
         }
@@ -90,25 +90,62 @@ public class InputManager : MonoBehaviour
         playerInputs[playerIndex] = input;
     }
 
-    private void UpdateControllerInput(int playerIndex)
+    private void UpdateControllerInputStandard(int playerIndex)
     {
-        string controllerPrefix = $"Joystick{playerIndex + 1}";
         PlayerInput input = playerInputs[playerIndex];
 
-        // Left stick movement
-        float horizontal = Input.GetAxis($"Horizontal_P{playerIndex + 1}");
-        float vertical = Input.GetAxis($"Vertical_P{playerIndex + 1}");
+        // Use Unity's standard input axes (works for most controllers out of the box)
+        float horizontal = 0f;
+        float vertical = 0f;
+
+        // For multiple controllers, we can try different approaches
+        if (playerIndex == 0)
+        {
+            // Player 1 uses default axes
+            horizontal = Input.GetAxis("Horizontal");
+            vertical = Input.GetAxis("Vertical");
+        }
+        else
+        {
+            // For additional controllers, use joystick-specific input
+            // This approach works with most controllers
+            string joystickPrefix = $"joystick {playerIndex + 1} ";
+
+            // Try to get input from specific joystick axes (if available)
+            try
+            {
+                // These are standard Unity joystick inputs that should work
+                for (int axis = 1; axis <= 10; axis++)
+                {
+                    float axisValue = Input.GetAxis($"joystick {playerIndex + 1} analog {axis}");
+                    if (Mathf.Abs(axisValue) > 0.1f)
+                    {
+                        if (axis == 1) horizontal = axisValue;      // Usually left stick X
+                        if (axis == 2) vertical = -axisValue;      // Usually left stick Y (inverted)
+                    }
+                }
+            }
+            catch
+            {
+                // If specific axes don't work, fallback to keyboard for this player
+                if (playerIndex == 1 && player2Keys.Length >= 4)
+                {
+                    if (Input.GetKey(player2Keys[3])) horizontal += 1f;  // Right
+                    if (Input.GetKey(player2Keys[2])) horizontal -= 1f;  // Left  
+                    if (Input.GetKey(player2Keys[0])) vertical += 1f;    // Up
+                    if (Input.GetKey(player2Keys[1])) vertical -= 1f;    // Down
+                }
+            }
+        }
+
         input.movement = new Vector2(horizontal, vertical);
 
-        // Controller buttons (Xbox controller layout)
-        input.attackDown = Input.GetKeyDown($"joystick {playerIndex + 1} button 0"); // A button
-        input.attackHeld = Input.GetKey($"joystick {playerIndex + 1} button 0");     // A button held
+        // Controller buttons using KeyCode approach (more reliable)
+        input.attackDown = Input.GetKeyDown($"joystick {playerIndex + 1} button 0");  // A button
+        input.attackHeld = Input.GetKey($"joystick {playerIndex + 1} button 0");      // A button held
         input.dashPressed = Input.GetKeyDown($"joystick {playerIndex + 1} button 1"); // B button
         input.specialPressed = Input.GetKeyDown($"joystick {playerIndex + 1} button 2"); // X button
         input.pausePressed = Input.GetKeyDown($"joystick {playerIndex + 1} button 7"); // Start button
-
-        // Alternative: Use Unity's new Input System if available
-        // This is fallback for legacy Input Manager
 
         playerInputs[playerIndex] = input;
     }
@@ -181,5 +218,27 @@ public class InputManager : MonoBehaviour
                 count++;
         }
         return count;
+    }
+
+    // Debug method to show controller info
+    private void OnGUI()
+    {
+        if (Application.isPlaying && Input.GetKey(KeyCode.F1))
+        {
+            GUILayout.BeginArea(new Rect(10, 10, 300, 200));
+            GUILayout.Label("Controllers Connected:");
+
+            string[] joysticks = Input.GetJoystickNames();
+            for (int i = 0; i < joysticks.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(joysticks[i]))
+                {
+                    GUILayout.Label($"Controller {i + 1}: {joysticks[i]}");
+                }
+            }
+
+            GUILayout.Label($"Registered Players: {registeredPlayers.Count}");
+            GUILayout.EndArea();
+        }
     }
 }

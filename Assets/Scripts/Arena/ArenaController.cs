@@ -65,7 +65,7 @@ public class ArenaController : MonoBehaviour
     private void CheckBoundaries()
     {
         // Find all BeyBlades in the scene
-        BeyBladeController[] allBlades = FindObjectsOfType<BeyBladeController>();
+        BeyBladeController[] allBlades = FindObjectsByType<BeyBladeController>(FindObjectsSortMode.None);
 
         foreach (var blade in allBlades)
         {

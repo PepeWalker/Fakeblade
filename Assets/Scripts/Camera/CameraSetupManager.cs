@@ -58,27 +58,10 @@ public class CameraSetupManager : MonoBehaviour
         // Get main camera if not assigned
         if (mainCamera == null)
         {
-            // First try to get the camera tagged as MainCamera
             mainCamera = Camera.main;
-
             if (mainCamera == null)
             {
-                // If no MainCamera tag exists, find the first active camera
-                Camera[] allCameras = FindObjectsByType<Camera>(FindObjectsSortMode.None);
-                foreach (Camera cam in allCameras)
-                {
-                    if (cam.isActiveAndEnabled)
-                    {
-                        mainCamera = cam;
-                        break;
-                    }
-                }
-
-                // If still no camera found, create a warning
-                if (mainCamera == null)
-                {
-                    Debug.LogWarning("No active camera found! Please assign a main camera to CameraSetupManager.");
-                }
+                mainCamera = FindFirstObjectByType<Camera>();
             }
         }
 

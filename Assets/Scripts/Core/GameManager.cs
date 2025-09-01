@@ -29,6 +29,9 @@ public class GameManager : MonoBehaviour
     [Header("Victory Conditions")]
     public VictoryCondition victoryCondition = VictoryCondition.LastBeyBladeStanding;
 
+    [Header("Player Statistics")] // NUEVO
+    public Dictionary<BeyBladeController, PlayerStats> playerStats = new Dictionary<BeyBladeController, PlayerStats>();
+
     public static GameManager Instance { get; private set; }
 
     public enum GameState
@@ -47,6 +50,24 @@ public class GameManager : MonoBehaviour
         TimeLimit,
         FirstToScore,
         TeamElimination
+    }
+
+    // NUEVA ESTRUCTURA PARA ESTADÍSTICAS
+    [System.Serializable]
+    public class PlayerStats
+    {
+        public int knockouts = 0;
+        public float survivalTime = 0f;
+        public float totalDamageDealt = 0f;
+        public float totalDamageReceived = 0f;
+        public int specialPowersUsed = 0;
+        public Vector3 startPosition;
+        public float battleStartTime;
+
+        public PlayerStats()
+        {
+            battleStartTime = Time.time;
+        }
     }
 
     public GameState currentState = GameState.MainMenu;
@@ -84,6 +105,7 @@ public class GameManager : MonoBehaviour
         {
             case GameState.Battle:
                 UpdateBattleTimer();
+                UpdatePlayerStatistics(); // NUEVO
                 CheckVictoryConditions();
                 break;
         }
@@ -171,6 +193,9 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         battleTimer = 0f;
+
+        // Inicializar estadísticas de jugadores
+        InitializePlayerStatistics();
 
         if (battleManager != null)
         {
@@ -338,14 +363,150 @@ public class GameManager : MonoBehaviour
         EndBattle(winner);
     }
 
-    private void OnBeyBladeDefeated(BeyBladeController defeatedBlade)
+    private void OnBeyBladeDefeated(BeyBladeController defeatedPlayer)
     {
-        Debug.Log($"{defeatedBlade.name} was defeated!");
+        Debug.Log($"{defeatedPlayer.name} was defeated!");
 
-        // Check if battle should end
+        // Actualizar estadísticas de supervivencia
+        if (playerStats.ContainsKey(defeatedPlayer))
+        {
+            playerStats[defeatedPlayer].survivalTime = Time.time - playerStats[defeatedPlayer].battleStartTime;
+        }
+
+        // Check if battle should continue based on mode
         if (currentState == GameState.Battle)
         {
             CheckVictoryConditions();
+        }
+    }
+    #endregion
+
+    #region Player Statistics - NUEVO
+    private void InitializePlayerStatistics()
+    {
+        playerStats.Clear();
+
+        foreach (var player in activePlayers)
+        {
+            if (player != null)
+            {
+                PlayerStats stats = new PlayerStats();
+                stats.startPosition = player.transform.position;
+                playerStats[player] = stats;
+            }
+        }
+    }
+
+    private void UpdatePlayerStatistics()
+    {
+        // Actualizar tiempo de supervivencia para jugadores vivos
+        foreach (var player in activePlayers)
+        {
+            if (player != null && !player.isDefeated && playerStats.ContainsKey(player))
+            {
+                playerStats[player].survivalTime = Time.time - playerStats[player].battleStartTime;
+            }
+        }
+    }
+
+    public void RecordPlayerKnockout(BeyBladeController attacker)
+    {
+        if (attacker != null && playerStats.ContainsKey(attacker))
+        {
+            playerStats[attacker].knockouts++;
+        }
+    }
+
+    public void RecordDamageDealt(BeyBladeController attacker, float damage)
+    {
+        if (attacker != null && playerStats.ContainsKey(attacker))
+        {
+            playerStats[attacker].totalDamageDealt += damage;
+        }
+    }
+
+    public void RecordDamageReceived(BeyBladeController victim, float damage)
+    {
+        if (victim != null && playerStats.ContainsKey(victim))
+        {
+            playerStats[victim].totalDamageReceived += damage;
+        }
+    }
+
+    public void RecordSpecialPowerUsed(BeyBladeController player)
+    {
+        if (player != null && playerStats.ContainsKey(player))
+        {
+            playerStats[player].specialPowersUsed++;
+        }
+    }
+
+    public PlayerStats GetPlayerStats(BeyBladeController player)
+    {
+        return playerStats.ContainsKey(player) ? playerStats[player] : new PlayerStats();
+    }
+    #endregion
+
+    #region Ranking System - NUEVO
+    public List<BeyBladeController> GetAlivePlayers()
+    {
+        return activePlayers.FindAll(p => p != null && !p.isDefeated);
+    }
+
+    public List<BeyBladeController> GetPlayersRankedByRPM()
+    {
+        return activePlayers
+            .Where(p => p != null && !p.isDefeated)
+            .OrderByDescending(p => p.currentRPM)
+            .ToList();
+    }
+
+    public List<BeyBladeController> GetPlayersRankedByScore()
+    {
+        return activePlayers
+            .Where(p => p != null)
+            .OrderByDescending(p => CalculatePlayerScore(p))
+            .ToList();
+    }
+
+    private float CalculatePlayerScore(BeyBladeController player)
+    {
+        if (!playerStats.ContainsKey(player)) return 0f;
+
+        var stats = playerStats[player];
+
+        // Fórmula de puntuación: RPM actual + knockouts * 500 + tiempo supervivencia * 10 + daño infligido
+        float score = player.currentRPM +
+                      (stats.knockouts * 500f) +
+                      (stats.survivalTime * 10f) +
+                      stats.totalDamageDealt;
+
+        return score;
+    }
+
+    public int GetPlayerRank(BeyBladeController player)
+    {
+        if (player == null) return activePlayers.Count;
+
+        var rankedPlayers = GetPlayersRankedByRPM();
+
+        for (int i = 0; i < rankedPlayers.Count; i++)
+        {
+            if (rankedPlayers[i] == player)
+                return i + 1;
+        }
+
+        return rankedPlayers.Count; // Si no se encuentra, último puesto
+    }
+
+    public string GetPlayerRankSuffix(int rank)
+    {
+        switch (rank)
+        {
+            case 1: return "st";
+            case 2: return "nd";
+            case 3: return "rd";
+            default: return "th";
         }
     }
     #endregion
@@ -447,6 +608,12 @@ public class GameManager : MonoBehaviour
             {
                 arenaController.UnregisterBeyBlade(player);
             }
+
+            // Limpiar estadísticas
+            if (playerStats.ContainsKey(player))
+            {
+                playerStats.Remove(player);
+            }
         }
     }
 
@@ -466,11 +633,7 @@ public class GameManager : MonoBehaviour
         }
 
         activePlayers.Clear();
-    }
-
-    public List<BeyBladeController> GetAlivePlayers()
-    {
-        return activePlayers.FindAll(p => !p.isDefeated);
+        playerStats.Clear();
     }
 
     public int GetAlivePlayerCount()

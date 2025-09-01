@@ -5,12 +5,14 @@ using System.Collections;
 public class PlayerHUD : MonoBehaviour
 {
     [Header("Player Info")]
+    public int playerIndex = 0;
     public Text playerNameText;
-    public Image playerColorImage;
+    public Text playerNumberText;
+    public Image playerColorFrame;
 
     [Header("RPM Bar")]
     public Slider rpmBar;
-    public Slider rpmDecayBar; // Barra que muestra el decay gradual
+    public Slider rpmDecayBar;
     public Text rpmText;
     public Image rpmFillImage;
 
@@ -28,40 +30,77 @@ public class PlayerHUD : MonoBehaviour
     [Header("Status Effects")]
     public GameObject[] statusEffectIcons;
 
+    [Header("Rankings")]
+    public Text currentRankText;
+
     private BeyBladeController assignedPlayer;
     private float lastRPMValue;
     private Coroutine rpmDecayCoroutine;
 
-    public void SetupForPlayer(BeyBladeController player)
+    // Colores por jugador
+    private static readonly Color[] PLAYER_COLORS = new Color[]
+    {
+        Color.blue,    // Jugador 1
+        Color.red,     // Jugador 2  
+        Color.green,   // Jugador 3
+        Color.yellow   // Jugador 4
+    };
+
+    public void SetupForPlayer(BeyBladeController player, int index)
     {
         assignedPlayer = player;
+        playerIndex = index;
 
         if (player?.stats != null)
         {
-            // Setup player info
-            if (playerNameText != null)
-                playerNameText.text = player.stats.beyBladeName;
-
-            if (playerColorImage != null)
-                playerColorImage.color = player.stats.bladeColor;
-
-            // Setup RPM bar
-            if (rpmBar != null)
-            {
-                rpmBar.maxValue = player.stats.maxRPM;
-                rpmBar.value = player.currentRPM;
-            }
-
-            if (rpmDecayBar != null)
-            {
-                rpmDecayBar.maxValue = player.stats.maxRPM;
-                rpmDecayBar.value = player.currentRPM;
-            }
-
-            // Setup attack charges
+            SetupPlayerInfo();
+            SetupRPMSystem();
             SetupAttackCharges();
-
             lastRPMValue = player.currentRPM;
+        }
+    }
+
+    private void SetupPlayerInfo()
+    {
+        if (playerNameText != null)
+            playerNameText.text = assignedPlayer.stats.beyBladeName;
+
+        if (playerNumberText != null)
+            playerNumberText.text = $"P{playerIndex + 1}";
+
+        if (playerColorFrame != null && playerIndex < PLAYER_COLORS.Length)
+            playerColorFrame.color = PLAYER_COLORS[playerIndex];
+    }
+
+    private void SetupRPMSystem()
+    {
+        float maxRPM = assignedPlayer.stats.maxRPM;
+
+        if (rpmBar != null)
+        {
+            rpmBar.maxValue = maxRPM;
+            rpmBar.value = assignedPlayer.currentRPM;
+        }
+
+        if (rpmDecayBar != null)
+        {
+            rpmDecayBar.maxValue = maxRPM;
+            rpmDecayBar.value = assignedPlayer.currentRPM;
+        }
+    }
+
+    private void SetupAttackCharges()
+    {
+        if (attackChargeIcons == null || assignedPlayer?.stats == null) return;
+
+        int maxCharges = assignedPlayer.stats.maxAttackCharges;
+
+        for (int i = 0; i < attackChargeIcons.Length; i++)
+        {
+            if (attackChargeIcons[i] != null)
+            {
+                attackChargeIcons[i].gameObject.SetActive(i < maxCharges);
+            }
         }
     }
 
@@ -73,6 +112,7 @@ public class PlayerHUD : MonoBehaviour
             UpdateAttackCharges();
             UpdateSpecialMeter();
             UpdateStatusEffects();
+            UpdateRankingInfo();
         }
     }
 
@@ -116,7 +156,7 @@ public class PlayerHUD : MonoBehaviour
 
     private IEnumerator AnimateRPMDecay(float fromRPM, float toRPM)
     {
-        float duration = 1f; // Decay animation duration
+        float duration = 1f;
         float elapsed = 0f;
 
         while (elapsed < duration && rpmDecayBar != null)
@@ -150,21 +190,6 @@ public class PlayerHUD : MonoBehaviour
         }
     }
 
-    private void SetupAttackCharges()
-    {
-        if (attackChargeIcons == null || assignedPlayer?.stats == null) return;
-
-        int maxCharges = assignedPlayer.stats.maxAttackCharges;
-
-        for (int i = 0; i < attackChargeIcons.Length; i++)
-        {
-            if (attackChargeIcons[i] != null)
-            {
-                attackChargeIcons[i].gameObject.SetActive(i < maxCharges);
-            }
-        }
-    }
-
     private void UpdateAttackCharges()
     {
         if (attackChargeIcons == null || assignedPlayer == null) return;
@@ -179,17 +204,14 @@ public class PlayerHUD : MonoBehaviour
             {
                 if (i < fullCharges)
                 {
-                    // Full charge
                     attackChargeIcons[i].color = chargeReadyColor;
                 }
                 else if (i == fullCharges && partialCharge > 0)
                 {
-                    // Recharging
                     attackChargeIcons[i].color = Color.Lerp(chargeEmptyColor, chargeRechargingColor, partialCharge);
                 }
                 else
                 {
-                    // Empty
                     attackChargeIcons[i].color = chargeEmptyColor;
                 }
             }
@@ -250,6 +272,15 @@ public class PlayerHUD : MonoBehaviour
             float rpmPercentage = assignedPlayer.currentRPM / assignedPlayer.stats.maxRPM;
             statusEffectIcons[2].SetActive(rpmPercentage < 0.25f);
         }
+    }
+
+    private void UpdateRankingInfo()
+    {
+        if (currentRankText == null || GameManager.Instance == null) return;
+
+        int rank = GameManager.Instance.GetPlayerRank(assignedPlayer);
+        string rankSuffix = GameManager.Instance.GetPlayerRankSuffix(rank);
+        currentRankText.text = $"{rank}{rankSuffix}";
     }
 
     // Called when player is defeated
