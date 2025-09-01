@@ -2535,10 +2535,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
 <<<<<<< HEAD
+<<<<<<< HEAD
   collisionSparks: {fileID: 333335716}
   trailParticles: {fileID: 333335716}
   minIntensityForSparks: 1
 =======
+=======
+>>>>>>> parent of 67e279e (cambios en particulas y fisicas)
   collisionSparks: {fileID: 0}
   trailParticles: {fileID: 0}
   minIntensityForSparks: 2
