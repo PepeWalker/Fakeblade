@@ -1,347 +1,473 @@
-using UnityEditor.ShaderGraph.Serialization;
 using UnityEngine;
 using System.Collections;
-using static BeyBladeController;
 
-[RequireComponent(typeof(Rigidbody), typeof(BeyBladePhysics), typeof(BeyBladeStats))]
+[RequireComponent(typeof(BeyBladePhysics), typeof(Rigidbody))]
 public class BeyBladeController : MonoBehaviour
 {
-    [Header("Components")]
+    [Header("BeyBlade Configuration")]
     public BeyBladeStats stats;
-    public BeyBladePhysics physics;
-    public ParticleManager particleManager;
+    public int playerIndex = -1;
+    public bool isAI = false;
 
-    [Header("Player Info")]
-    public int playerIndex;
-    public string playerName;
-    public Color playerColor = Color.red;
-
-    [Header("Combat")]
+    [Header("Current Status")]
     public float currentRPM;
-    public int attackCharges;
-    public float specialPower;
+    public float currentAttackCharges;
+    public bool isDefeated = false;
+    public bool isInvulnerable = false;
 
-    [Header("Cooldowns")]
-    public float dashCooldownTime = 1.5f;
-    public float attackCooldownTime = 0.5f;
-    public float chargeRecoveryRate = 1f; // Cargas por segundo
+    [Header("Attack System")]
+    public float chargedAttackTimer = 0f;
+    public float maxChargeTime = 2f;
+    public bool isChargingAttack = false;
+    public float attackCooldown = 0f;
 
-    // Timers privados
-    private float dashCooldownTimer = 0f;
-    private float attackCooldownTimer = 0f;
-    private float chargeRecoveryTimer = 0f;
+    [Header("Dash System")]
+    public float dashCooldown = 0f;
 
+    [Header("Special Power")]
+    public float specialMeterCharge = 0f;
+    public bool isSpecialActive = false;
+    public float specialDuration = 0f;
 
+    // References
+    private BeyBladePhysics physics;
+    private ParticleManager particleManager;
+    private AudioSource audioSource;
+    private Rigidbody rb;
 
-    // Propiedades públicas para verificar estado
-    public bool IsDefeated => currentState == BeyBladeState.Defeated;
-    public bool CanAttack => attackCharges > 0 && currentState == BeyBladeState.Active && attackCooldownTimer <= 0;
-    public bool CanDash => currentRPM >= stats.dashCost && currentState == BeyBladeState.Active && dashCooldownTimer <= 0;
+    // Input handling
+    private Vector2 currentMovementInput;
+    private bool attackButtonDown = false;
+    private bool attackButtonHeld = false;
+    private bool dashButtonPressed = false;
+    private bool specialButtonPressed = false;
 
+    public delegate void BeyBladeEvent(BeyBladeController blade);
+    public static event BeyBladeEvent OnBeyBladeDefeated;
 
-    // Estados
-    public enum BeyBladeState
+    private void Awake()
     {
-        Active,
-        Charging,
-        Attacking,
-        Stunned,
-        Defeated
+        physics = GetComponent<BeyBladePhysics>();
+        particleManager = GetComponent<ParticleManager>();
+        audioSource = GetComponent<AudioSource>();
+        rb = GetComponent<Rigidbody>();
     }
-
-    public BeyBladeState currentState = BeyBladeState.Active;
-
-    // Eventos
-    public System.Action<BeyBladeController> OnDefeated;
-    public System.Action<BeyBladeController, float> OnRPMChanged;
-    public System.Action<BeyBladeController> OnAttack;
-    public System.Action<BeyBladeController> OnDash;
-    public System.Action<BeyBladeController> OnSpecialActivated;
 
     private void Start()
     {
         Initialize();
     }
 
+    private void Update()
+    {
+        if (isDefeated) return;
+
+        UpdateCooldowns();
+        UpdateSpecialPower();
+        HandleChargedAttack();
+    }
+
+    private void FixedUpdate()
+    {
+        if (isDefeated) return;
+
+        ProcessMovement();
+        ProcessAttacks();
+        ProcessDash();
+        ProcessSpecial();
+    }
+
     public void Initialize()
     {
-        // Asegurar que los componentes estén asignados
-        if (stats == null) stats = GetComponent<BeyBladeStats>();
-        if (physics == null) physics = GetComponent<BeyBladePhysics>();
-        if (particleManager == null) particleManager = GetComponent<ParticleManager>();
-
-        currentRPM = stats.maxRPM;
-        attackCharges = stats.maxAttackCharges;
-        specialPower = 0f;
-
-        physics.Initialize(stats);
-
-        // Inicializar partículas si existe el componente
-        if (particleManager != null)
+        if (stats == null)
         {
-            particleManager = GetComponent<ParticleManager>();
+            Debug.LogError($"BeyBladeStats not assigned for {gameObject.name}");
+            return;
         }
 
-        // Registrarse en el GameManager
+        // Initialize stats
+        currentRPM = stats.maxRPM;
+        currentAttackCharges = stats.maxAttackCharges;
+        specialMeterCharge = 0f;
+
+        // Initialize physics
+        physics.Initialize(stats);
+
+        // Register with GameManager
         if (GameManager.Instance != null)
         {
             GameManager.Instance.RegisterPlayer(this);
         }
-    }
 
-    private void Update()
-    {
-        if (currentState == BeyBladeState.Defeated) return;
-
-        HandleInput();
-        UpdateTimers();
-        UpdateRPM();
-        UpdateCharges();
-        CheckDefeat();
-    }
-
-    private void UpdateTimers()
-    {
-        if (dashCooldownTimer > 0)
-            dashCooldownTimer -= Time.deltaTime;
-
-        if (attackCooldownTimer > 0)
-            attackCooldownTimer -= Time.deltaTime;
-    }
-
-    private void HandleInput()
-    {
-        //Obtener input del inputmanager
-        Vector2 movement = Vector2.zero;
-        bool attackInput = false;
-        bool dashInput = false;
-        bool specialInput = false;
-
-        if (InputManager.Instance != null) {
-            movement = InputManager.Instance.GetMovementInput(playerIndex);
-            attackInput = InputManager.Instance.GetAttackInput(playerIndex);
-            dashInput = InputManager.Instance.GetDashInput(playerIndex);
-            specialInput = InputManager.Instance.GetSpecialInput(playerIndex);
+        // Setup audio
+        if (audioSource != null)
+        {
+            audioSource.volume = 0.3f;
+            audioSource.loop = true;
+            audioSource.pitch = 1f;
         }
 
-        // Aplicar movimiento
-        if (movement != Vector2.zero)
+        Debug.Log($"BeyBlade {gameObject.name} initialized with {stats.beyBladeName} stats");
+    }
+
+    #region Input Handling
+    public void SetMovementInput(Vector2 input)
+    {
+        currentMovementInput = input;
+    }
+
+    public void SetAttackInput(bool buttonDown, bool buttonHeld)
+    {
+        attackButtonDown = buttonDown;
+        attackButtonHeld = buttonHeld;
+    }
+
+    public void SetDashInput(bool pressed)
+    {
+        dashButtonPressed = pressed;
+    }
+
+    public void SetSpecialInput(bool pressed)
+    {
+        specialButtonPressed = pressed;
+    }
+    #endregion
+
+    #region Movement & Actions
+    private void ProcessMovement()
+    {
+        if (currentMovementInput.magnitude > 0.1f)
         {
-            physics.ApplyMovement(movement);
-        }
+            // Update forward direction for attacks
+            Vector3 moveDirection = new Vector3(currentMovementInput.x, 0, currentMovementInput.y).normalized;
+            transform.forward = moveDirection;
 
-        // Procesar inputs de acción
-        if (attackInput) TryAttack();
-        if (dashInput) TryDash(movement);
-        if (specialInput) TrySpecialAttack();
-    }
-
-    public void TryAttack()
-    {
-        if (!CanAttack) return;
-
-        ExecuteAttack();
-    }
-
-    public void ExecuteAttack()
-    {
-        currentState = BeyBladeState.Attacking;
-        attackCharges--;
-        attackCooldownTimer = attackCooldownTime;
-
-        // Ejecutar ataque en physics
-        physics.ExecuteAttack();
-
-        // Efectos de partículas
-        if (particleManager != null)
-        {
-            //particleManager.PlaySparkEffect(transform.position, transform.forward, 1f);
-        }
-
-        // Eventos y audio
-        OnAttack?.Invoke(this);
-
-        // Volver al estado activo después del ataque
-        StartCoroutine(ResetStateCoroutine(0.2f, BeyBladeState.Active));
-    }
-
-    public void TryDash(Vector2 direction)
-    {
-        if (!CanDash) return;
-
-        ExecuteDash(direction);
-    }
-
-    public bool ExecuteDash(Vector2 direction)
-    {
-        if (!CanDash) return false;
-
-        dashCooldownTimer = dashCooldownTime;
-        ModifyRPM(-stats.dashCost);
-
-        Vector3 dashDirection = new Vector3(direction.x, 0, direction.y).normalized;
-        if (dashDirection == Vector3.zero)
-            dashDirection = transform.forward;
-
-        // Ejecutar dash en physics
-        physics.ExecuteDash();
-
-        // Efectos de partículas de dash
-        if (particleManager != null)
-        {
-            //particleManager.PlayDashEffect(dashDirection);
-        }
-
-        // Eventos
-        OnDash?.Invoke(this);
-
-        return true;
-    }
-
-    public void TrySpecialAttack()
-    {
-        if (specialPower >= 100f && currentState == BeyBladeState.Active)
-        {
-            ExecuteSpecialAttack();
+            physics.ApplyMovement(currentMovementInput);
         }
     }
 
-    public void ExecuteSpecialAttack()
+    private void ProcessAttacks()
     {
-        if (stats != null)
+        if (attackButtonDown && !isChargingAttack && currentAttackCharges > 0 && attackCooldown <= 0f)
         {
-            stats.ExecuteSpecialPower(this);
-            specialPower = 0f;
+            StartAttack();
+        }
 
-            // Efectos de partículas especiales
-            if (particleManager != null)
+        if (!attackButtonHeld && isChargingAttack)
+        {
+            ExecuteChargedAttack();
+        }
+    }
+
+    private void ProcessDash()
+    {
+        if (dashButtonPressed && dashCooldown <= 0f && currentRPM >= stats.dashCost)
+        {
+            ExecuteDash();
+        }
+    }
+
+    private void ProcessSpecial()
+    {
+        if (specialButtonPressed && specialMeterCharge >= 1f && !isSpecialActive)
+        {
+            ActivateSpecialPower();
+        }
+    }
+    #endregion
+
+    #region Combat System
+    private void StartAttack()
+    {
+        isChargingAttack = true;
+        chargedAttackTimer = 0f;
+
+        // Set direction towards nearest enemy if no input
+        if (currentMovementInput.magnitude < 0.1f)
+        {
+            BeyBladeController nearestEnemy = FindNearestEnemy();
+            if (nearestEnemy != null)
             {
-                //particleManager.PlaySpecialAttackEffect(stats.specialName);
+                Vector3 directionToEnemy = (nearestEnemy.transform.position - transform.position).normalized;
+                directionToEnemy.y = 0;
+                transform.forward = directionToEnemy;
             }
+        }
 
-            OnSpecialActivated?.Invoke(this);
+        Debug.Log($"{gameObject.name} started charging attack");
+    }
+
+    private void HandleChargedAttack()
+    {
+        if (isChargingAttack)
+        {
+            chargedAttackTimer += Time.deltaTime;
+
+            // Auto-execute at max charge
+            if (chargedAttackTimer >= maxChargeTime)
+            {
+                ExecuteChargedAttack();
+            }
         }
     }
 
+    private void ExecuteChargedAttack()
+    {
+        if (!isChargingAttack) return;
 
+        float chargePercentage = Mathf.Clamp01(chargedAttackTimer / maxChargeTime);
+        int chargesToUse = Mathf.RoundToInt(chargePercentage * currentAttackCharges);
+        chargesToUse = Mathf.Clamp(chargesToUse, 1, (int)currentAttackCharges);
+
+        // Execute attack
+        if (chargePercentage < 0.3f)
+        {
+            physics.ExecuteAttack();
+        }
+        else
+        {
+            physics.ExecuteChargedAttack(chargePercentage);
+        }
+
+        // Consume charges
+        currentAttackCharges -= chargesToUse;
+
+        // Set cooldown
+        attackCooldown = 0.5f;
+
+        // Effects
+        if (particleManager != null)
+        {
+            particleManager.PlayAttackEffect(chargePercentage);
+        }
+
+        // Reset charging
+        isChargingAttack = false;
+        chargedAttackTimer = 0f;
+
+        // Build special meter
+        BuildSpecialMeter(chargesToUse * 0.1f);
+
+        Debug.Log($"Attack executed with {chargePercentage:F2} charge using {chargesToUse} charges");
+    }
+
+    private void ExecuteDash()
+    {
+        // Set direction if no input
+        if (currentMovementInput.magnitude < 0.1f)
+        {
+            BeyBladeController nearestEnemy = FindNearestEnemy();
+            if (nearestEnemy != null)
+            {
+                Vector3 directionToEnemy = (nearestEnemy.transform.position - transform.position).normalized;
+                directionToEnemy.y = 0;
+                transform.forward = directionToEnemy;
+            }
+        }
+
+        physics.ExecuteDash();
+        ModifyRPM(-stats.dashCost);
+        dashCooldown = 1f;
+
+        if (particleManager != null)
+        {
+            particleManager.PlayDashEffect();
+        }
+
+        Debug.Log($"{gameObject.name} executed dash");
+    }
+    #endregion
+
+    #region Special Powers
+    private void ActivateSpecialPower()
+    {
+        if (specialMeterCharge < 1f) return;
+
+        isSpecialActive = true;
+        specialDuration = 5f; // Base duration
+        specialMeterCharge = 0f;
+
+        // Apply special effect based on type
+        switch (stats.specialType)
+        {
+            case SpecialType.FireTrail:
+                ActivateFireTrail();
+                break;
+            case SpecialType.ElectricDash:
+                ActivateElectricDash();
+                break;
+            case SpecialType.StormBreaker:
+                ActivateStormBreaker();
+                break;
+        }
+
+        if (particleManager != null)
+        {
+            particleManager.PlaySpecialEffect(stats.specialType);
+        }
+
+        Debug.Log($"Special power activated: {stats.specialName}");
+    }
+
+    private void ActivateFireTrail()
+    {
+        physics.ModifySpeedLimits(1.3f, 1.5f, specialDuration);
+        // TODO: Implement fire trail damage zone
+    }
+
+    private void ActivateElectricDash()
+    {
+        dashCooldown = 0f; // Reset dash cooldown
+        physics.ModifySpeedLimits(1.2f, 2f, specialDuration);
+    }
+
+    private void ActivateStormBreaker()
+    {
+        // Massive defense boost and attack power
+        rb.mass *= 2f;
+        StartCoroutine(RestoreMassAfterSpecial());
+    }
+
+    private IEnumerator RestoreMassAfterSpecial()
+    {
+        yield return new WaitForSeconds(specialDuration);
+        rb.mass = stats.mass;
+    }
+    #endregion
+
+    #region Status Management
     public void ModifyRPM(float amount)
     {
         float oldRPM = currentRPM;
-        currentRPM = Mathf.Clamp(currentRPM + amount, 0f, stats.maxRPM);
+        currentRPM = Mathf.Clamp(currentRPM + amount, 0, stats.maxRPM);
 
-        if (oldRPM != currentRPM)
+        if (amount < 0)
         {
-            OnRPMChanged?.Invoke(this, currentRPM);
+            // Build special meter when taking damage
+            BuildSpecialMeter(-amount * 0.01f);
         }
-    }
 
-    public void AddSpecialPower(float amount)
-    {
-        specialPower = Mathf.Clamp(specialPower + amount, 0f, 100f);
-    }
-
-    private void UpdateRPM()
-    {
-        if (stats.rpmDecayRate > 0)
-        {
-            float naturalDecay = stats.rpmDecayRate * Time.deltaTime;
-            ModifyRPM(-naturalDecay);
-        }
-    }
-
-    private void UpdateCharges()
-    {
-        if (attackCharges < stats.maxAttackCharges)
-        {
-            chargeRecoveryTimer += Time.deltaTime;
-
-            if (chargeRecoveryTimer >= stats.chargeRecoveryTime)
-            {
-                attackCharges++;
-                chargeRecoveryTimer = 0f;
-            }
-        }
-    }
-
-    private void CheckDefeat()
-    {
-        if (currentRPM <= 0f)
+        if (currentRPM <= 0 && !isDefeated)
         {
             SetDefeated();
         }
+
+        // Update audio based on RPM
+        if (audioSource != null && audioSource.clip != null)
+        {
+            float rpmPercentage = currentRPM / stats.maxRPM;
+            audioSource.pitch = Mathf.Lerp(0.5f, 1.5f, rpmPercentage);
+            audioSource.volume = Mathf.Lerp(0.1f, 0.4f, rpmPercentage);
+        }
+    }
+
+    private void BuildSpecialMeter(float amount)
+    {
+        specialMeterCharge = Mathf.Clamp01(specialMeterCharge + amount);
     }
 
     public void SetDefeated()
     {
-        currentState = BeyBladeState.Defeated;
+        if (isDefeated) return;
+
+        isDefeated = true;
         physics.SetDefeated();
 
-        // Efectos de derrota
-        if (particleManager != null)
+        if (audioSource != null)
         {
-            //particleManager.PlayDefeatEffect();
+            audioSource.Stop();
         }
 
-        OnDefeated?.Invoke(this);
-
-        // Notificar al GameManager si existe
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.UnregisterPlayer(this);
-        }
+        OnBeyBladeDefeated?.Invoke(this);
+        Debug.Log($"{gameObject.name} has been defeated!");
     }
 
     public void SetPlayerIndex(int index)
     {
         playerIndex = index;
     }
+    #endregion
 
-    private IEnumerator ResetStateCoroutine(float delay, BeyBladeState newState)
+    #region Utility Methods
+    private BeyBladeController FindNearestEnemy()
     {
-        yield return new WaitForSeconds(delay);
-        currentState = newState;
+        BeyBladeController nearest = null;
+        float nearestDistance = float.MaxValue;
+
+        foreach (var player in GameManager.Instance.activePlayers)
+        {
+            if (player != this && !player.isDefeated)
+            {
+                float distance = Vector3.Distance(transform.position, player.transform.position);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearest = player;
+                }
+            }
+        }
+
+        return nearest;
     }
 
-    private void OnTriggerEnter(Collider other)
+    private void UpdateCooldowns()
     {
-        if (other.CompareTag("Arena_PowerUp"))
+        if (attackCooldown > 0f)
+            attackCooldown -= Time.deltaTime;
+
+        if (dashCooldown > 0f)
+            dashCooldown -= Time.deltaTime;
+
+        // Recover attack charges
+        if (currentAttackCharges < stats.maxAttackCharges)
         {
-            ArenaZone zone = other.GetComponent<ArenaZone>();
-            if (zone != null)
+            float recoveryTime = stats.chargeRecoveryTime;
+            if (Time.time % recoveryTime < Time.deltaTime)
             {
-                zone.ApplyEffect(this);
+                currentAttackCharges = Mathf.Min(currentAttackCharges + 1, stats.maxAttackCharges);
             }
         }
     }
 
-    
+    private void UpdateSpecialPower()
+    {
+        if (isSpecialActive)
+        {
+            specialDuration -= Time.deltaTime;
+            if (specialDuration <= 0f)
+            {
+                isSpecialActive = false;
+                Debug.Log($"Special power ended for {gameObject.name}");
+            }
+        }
+    }
 
     public ParticleManager GetParticleManager()
     {
-        if (particleManager == null)
-            particleManager = GetComponent<ParticleManager>();
         return particleManager;
     }
+    #endregion
 
-    // Método para obtener información del jugador, para UI sobretodo
-    public float GetRPMPercentage()
+    #region Gizmos
+    private void OnDrawGizmosSelected()
     {
-        return stats.maxRPM > 0 ? currentRPM / stats.maxRPM : 0f;
-    }
+        if (Application.isPlaying)
+        {
+            // Attack range
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(transform.position, 2f);
 
-    public float GetSpecialPercentage()
-    {
-        return specialPower / 100f;
-    }
+            // Direction indicator
+            Gizmos.color = Color.blue;
+            Gizmos.DrawRay(transform.position, transform.forward * 1.5f);
 
-    private void OnDestroy()
-    {
-        // Limpiar eventos para evitar memory leaks
-        OnDefeated = null;
-        OnRPMChanged = null;
-        OnAttack = null;
-        OnDash = null;
-        OnSpecialActivated = null;
+            // Special meter indicator
+            if (specialMeterCharge > 0f)
+            {
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawWireSphere(transform.position + Vector3.up, specialMeterCharge * 0.5f);
+            }
+        }
     }
-
+    #endregion
 }

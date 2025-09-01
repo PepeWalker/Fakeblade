@@ -1,156 +1,185 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class InputManager : MonoBehaviour
 {
-    public static InputManager Instance { get; private set; }
+    [Header("Input Settings")]
+    public bool allowKeyboardAndMouse = true;
+    public bool allowControllers = true;
 
-    [System.Serializable]
-    public class PlayerInput
+    [Header("Keyboard Controls")]
+    public KeyCode[] player1Keys = { KeyCode.W, KeyCode.S, KeyCode.A, KeyCode.D, KeyCode.Space, KeyCode.LeftShift, KeyCode.Q };
+    public KeyCode[] player2Keys = { KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.RightControl, KeyCode.RightShift, KeyCode.Return };
+
+    private Dictionary<int, PlayerInput> playerInputs = new Dictionary<int, PlayerInput>();
+    private List<BeyBladeController> registeredPlayers = new List<BeyBladeController>();
+
+    public struct PlayerInput
     {
-        public KeyCode attackKey = KeyCode.Space;
-        public KeyCode dashKey = KeyCode.LeftShift;
-        public KeyCode specialKey = KeyCode.E;
-        public string horizontalAxis = "Horizontal";
-        public string verticalAxis = "Vertical";
-        public bool useGamepad = false;
-        public int gamepadIndex = 0;
-    }
-
-    public PlayerInput[] playerInputs = new PlayerInput[4];
-
-    private void Awake()
-    {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        public Vector2 movement;
+        public bool attackDown;
+        public bool attackHeld;
+        public bool dashPressed;
+        public bool specialPressed;
+        public bool pausePressed;
     }
 
     public void Initialize(int maxPlayers)
     {
-        // Configurar controles por defecto
-        SetupDefaultControls(maxPlayers);
+        for (int i = 0; i < maxPlayers; i++)
+        {
+            playerInputs[i] = new PlayerInput();
+        }
+
+        Debug.Log($"InputManager initialized for {maxPlayers} players");
     }
 
-    private void SetupDefaultControls(int maxPlayers)
+    private void Update()
     {
-        //cuando se haga la pantalla de pre batalla, ahi se seleccionará los controles o en opciones y se guardará que se ha elegido.
-        
-        // Jugador 1 - Mando
-        playerInputs[0] = new PlayerInput
-        {
-            useGamepad = true,
-            gamepadIndex = 0
-        };
-        /*
-         // Jugador 1 - Teclado
-        playerInputs[0] = new PlayerInput
-        {
-            attackKey = KeyCode.Space,
-            dashKey = KeyCode.LeftShift,
-            specialKey = KeyCode.E,
-            horizontalAxis = "Horizontal",
-            verticalAxis = "Vertical"
-        };
+        UpdateAllPlayerInputs();
+        DistributeInputsToPlayers();
+    }
 
-        // Jugador 2 - Teclado alternativo
-        playerInputs[1] = new PlayerInput
+    private void UpdateAllPlayerInputs()
+    {
+        // Update keyboard inputs
+        if (allowKeyboardAndMouse)
         {
-            attackKey = KeyCode.Return,
-            dashKey = KeyCode.RightShift,
-            specialKey = KeyCode.RightControl,
-            horizontalAxis = "Horizontal2",
-            verticalAxis = "Vertical2"
-        };
-
-        // Jugadores 3 y 4 - Gamepads
-        for (int i = 2; i < maxPlayers; i++)
-        {
-            playerInputs[i] = new PlayerInput
+            UpdateKeyboardInput(0, player1Keys); // Player 1
+            if (registeredPlayers.Count > 1)
             {
-                useGamepad = true,
-                gamepadIndex = i - 2
-            };
+                UpdateKeyboardInput(1, player2Keys); // Player 2
+            }
         }
-        */
+
+        // Update controller inputs
+        if (allowControllers)
+        {
+            for (int i = 0; i < 4; i++) // Unity supports up to 4 controllers
+            {
+                if (i < registeredPlayers.Count)
+                {
+                    UpdateControllerInput(i);
+                }
+            }
+        }
     }
 
-    public Vector2 GetMovementInput(int playerIndex)
+    private void UpdateKeyboardInput(int playerIndex, KeyCode[] keys)
     {
-        if (playerIndex >= playerInputs.Length) return Vector2.zero;
+        if (keys.Length < 7) return;
 
         PlayerInput input = playerInputs[playerIndex];
 
-        if (input.useGamepad)
-        {
-            return GetGamepadMovement(input.gamepadIndex);
-        }
-        else
-        {
-            float horizontal = Input.GetAxis(input.horizontalAxis);
-            float vertical = Input.GetAxis(input.verticalAxis);
-            return new Vector2(horizontal, vertical);
-        }
+        // Movement (WASD or Arrow Keys)
+        Vector2 movement = Vector2.zero;
+        if (Input.GetKey(keys[0])) movement.y += 1f;  // Forward
+        if (Input.GetKey(keys[1])) movement.y -= 1f;  // Backward
+        if (Input.GetKey(keys[2])) movement.x -= 1f;  // Left
+        if (Input.GetKey(keys[3])) movement.x += 1f;  // Right
+
+        input.movement = movement.normalized;
+
+        // Action buttons
+        input.attackDown = Input.GetKeyDown(keys[4]);    // Attack button down
+        input.attackHeld = Input.GetKey(keys[4]);        // Attack button held
+        input.dashPressed = Input.GetKeyDown(keys[5]);   // Dash
+        input.specialPressed = Input.GetKeyDown(keys[6]); // Special
+        input.pausePressed = Input.GetKeyDown(KeyCode.Escape);
+
+        playerInputs[playerIndex] = input;
     }
 
-    public bool GetAttackInput(int playerIndex)
+    private void UpdateControllerInput(int playerIndex)
     {
-        if (playerIndex >= playerInputs.Length) return false;
-
+        string controllerPrefix = $"Joystick{playerIndex + 1}";
         PlayerInput input = playerInputs[playerIndex];
 
-        if (input.useGamepad)
+        // Left stick movement
+        float horizontal = Input.GetAxis($"Horizontal_P{playerIndex + 1}");
+        float vertical = Input.GetAxis($"Vertical_P{playerIndex + 1}");
+        input.movement = new Vector2(horizontal, vertical);
+
+        // Controller buttons (Xbox controller layout)
+        input.attackDown = Input.GetKeyDown($"joystick {playerIndex + 1} button 0"); // A button
+        input.attackHeld = Input.GetKey($"joystick {playerIndex + 1} button 0");     // A button held
+        input.dashPressed = Input.GetKeyDown($"joystick {playerIndex + 1} button 1"); // B button
+        input.specialPressed = Input.GetKeyDown($"joystick {playerIndex + 1} button 2"); // X button
+        input.pausePressed = Input.GetKeyDown($"joystick {playerIndex + 1} button 7"); // Start button
+
+        // Alternative: Use Unity's new Input System if available
+        // This is fallback for legacy Input Manager
+
+        playerInputs[playerIndex] = input;
+    }
+
+    private void DistributeInputsToPlayers()
+    {
+        for (int i = 0; i < registeredPlayers.Count; i++)
         {
-            return Input.GetButtonDown($"joystick {input.gamepadIndex + 1} button 0");
-        }
-        else
-        {
-            return Input.GetKeyDown(input.attackKey);
+            if (registeredPlayers[i] != null && !registeredPlayers[i].isDefeated)
+            {
+                PlayerInput input = playerInputs[i];
+
+                registeredPlayers[i].SetMovementInput(input.movement);
+                registeredPlayers[i].SetAttackInput(input.attackDown, input.attackHeld);
+                registeredPlayers[i].SetDashInput(input.dashPressed);
+                registeredPlayers[i].SetSpecialInput(input.specialPressed);
+
+                // Handle pause for any player
+                if (input.pausePressed && GameManager.Instance != null)
+                {
+                    GameManager.Instance.TogglePause();
+                }
+            }
         }
     }
 
-    public bool GetDashInput(int playerIndex)
+    public void RegisterPlayer(BeyBladeController player)
     {
-        if (playerIndex >= playerInputs.Length) return false;
-
-        PlayerInput input = playerInputs[playerIndex];
-
-        if (input.useGamepad)
+        if (!registeredPlayers.Contains(player))
         {
-            return Input.GetButtonDown($"joystick {input.gamepadIndex + 1} button 1");
-        }
-        else
-        {
-            return Input.GetKeyDown(input.dashKey);
+            registeredPlayers.Add(player);
+            player.SetPlayerIndex(registeredPlayers.Count - 1);
+            Debug.Log($"Player {registeredPlayers.Count} registered for input");
         }
     }
 
-    public bool GetSpecialInput(int playerIndex)
+    public void UnregisterPlayer(BeyBladeController player)
     {
-        if (playerIndex >= playerInputs.Length) return false;
-
-        PlayerInput input = playerInputs[playerIndex];
-
-        if (input.useGamepad)
+        if (registeredPlayers.Contains(player))
         {
-            return Input.GetButtonDown($"joystick {input.gamepadIndex + 1} button 2");
-        }
-        else
-        {
-            return Input.GetKeyDown(input.specialKey);
+            registeredPlayers.Remove(player);
+            Debug.Log($"Player unregistered from input");
         }
     }
 
-    private Vector2 GetGamepadMovement(int gamepadIndex)
+    public PlayerInput GetPlayerInput(int playerIndex)
     {
-        string joyName = $"joystick {gamepadIndex + 1}";
-        float horizontal = Input.GetAxis($"{joyName} axis 1");
-        float vertical = Input.GetAxis($"{joyName} axis 2");
-        return new Vector2(horizontal, -vertical); // Invertir Y para gamepads
+        if (playerInputs.ContainsKey(playerIndex))
+        {
+            return playerInputs[playerIndex];
+        }
+        return new PlayerInput();
+    }
+
+    // Method to check if controller is connected
+    public bool IsControllerConnected(int controllerIndex)
+    {
+        string[] joystickNames = Input.GetJoystickNames();
+        return controllerIndex < joystickNames.Length && !string.IsNullOrEmpty(joystickNames[controllerIndex]);
+    }
+
+    // Get connected controller count
+    public int GetConnectedControllerCount()
+    {
+        int count = 0;
+        string[] joystickNames = Input.GetJoystickNames();
+        for (int i = 0; i < joystickNames.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(joystickNames[i]))
+                count++;
+        }
+        return count;
     }
 }

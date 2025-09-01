@@ -316,11 +316,7 @@ public class ImprovedBeyBladeController : MonoBehaviour
 
         Debug.Log($"{gameObject.name} has been defeated!");
 
-        // Notificar al GameManager
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.OnPlayerDefeated(this);
-        }
+        
     }
 
     #endregion

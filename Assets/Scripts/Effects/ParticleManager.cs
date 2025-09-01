@@ -3,161 +3,201 @@ using System.Collections;
 
 public class ParticleManager : MonoBehaviour
 {
-    [Header("Collision Particles")]
-    public ParticleSystem collisionSparks;
-    public ParticleSystem trailParticles;
+    [Header("Particle Systems")]
+    public ParticleSystem trailEffect;
+    public ParticleSystem sparkEffect;
+    public ParticleSystem collisionEffect;
+    public ParticleSystem attackEffect;
+    public ParticleSystem dashEffect;
+    public ParticleSystem specialEffect;
 
-    [Header("Collision Settings")]
-    public float minIntensityForSparks = 0.5f; 
-    public float maxSparkIntensity = 10f;
-    public int minSparkCount = 15;
-    public int maxSparkCount = 60;
+    [Header("Trail Settings")]
+    public TrailRenderer speedTrail;
+    public float minSpeedForTrail = 3f;
 
-    [Header("Colors by BeyBlade Type")]
-    public Color attackSparks = Color.red;
-    public Color defenseSparks = Color.blue;
-    public Color agilitySparks = Color.yellow;
-    public Color balancedSparks = Color.white;
+    private BeyBladeController controller;
+    private BeyBladePhysics physics;
 
-    [Header("Debug")]
-    public bool debugParticles = true;
-
-    private BeyBladeController owner;
-    private ParticleSystem.EmissionModule emissionModule;
-    private ParticleSystem.MainModule mainModule;
-
-    void Start()
+    private void Awake()
     {
-        owner = GetComponent<BeyBladeController>();
+        controller = GetComponent<BeyBladeController>();
+        physics = GetComponent<BeyBladePhysics>();
+    }
+
+    private void Start()
+    {
         InitializeParticles();
     }
 
-    void InitializeParticles()
+    private void Update()
     {
-        if (collisionSparks == null)
+        UpdateSpeedTrail();
+        UpdateSpinEffects();
+    }
+
+    private void InitializeParticles()
+    {
+        // Apply blade-specific colors and settings
+        if (controller?.stats?.particleEffects != null)
         {
-            // Buscar en hijos si no está asignado
-            collisionSparks = GetComponentInChildren<ParticleSystem>();
-            if (debugParticles)
+            controller.stats.particleEffects.ApplyToParticleManager(this);
+        }
+
+        // Initialize trail
+        if (speedTrail != null)
+        {
+            speedTrail.enabled = false;
+            if (controller?.stats?.trailMaterial != null)
             {
-                Debug.Log($"{gameObject.name}: CollisionSparks " +
-                         (collisionSparks != null ? "found in children" : "NOT FOUND"));
+                speedTrail.material = controller.stats.trailMaterial;
             }
         }
+    }
 
-        if (collisionSparks != null)
+    private void UpdateSpeedTrail()
+    {
+        if (speedTrail != null && physics != null)
         {
-            emissionModule = collisionSparks.emission;
-            mainModule = collisionSparks.main;
+            float currentSpeed = physics.GetCurrentSpeed();
+            bool shouldShowTrail = currentSpeed > minSpeedForTrail;
 
-            // Configurar colores según el tipo de BeyBlade
-            if (owner != null && owner.stats != null)
+            if (speedTrail.enabled != shouldShowTrail)
             {
-                Color sparkColor = GetSparkColorByType(owner.stats.type);
-                mainModule.startColor = sparkColor;
-
-                if (debugParticles)
-                    Debug.Log($"{gameObject.name}: Spark color set to {sparkColor} for type {owner.stats.type}");
+                speedTrail.enabled = shouldShowTrail;
             }
 
-            // Desactivar emisión automática
-            emissionModule.enabled = false;
-
-            // Configurar el sistema para emisión manual
-            collisionSparks.Stop();
-
-            if (debugParticles)
-                Debug.Log($"{gameObject.name}: Particle system initialized successfully");
-        }
-        else
-        {
-            Debug.LogError($"{gameObject.name}: No ParticleSystem found for collision sparks!");
+            if (shouldShowTrail)
+            {
+                // Adjust trail width based on speed
+                float speedPercentage = currentSpeed / 10f; // Max speed for calculation
+                speedTrail.startWidth = Mathf.Lerp(0.1f, 0.3f, speedPercentage);
+                speedTrail.endWidth = 0.05f;
+            }
         }
     }
 
-    public void PlayCollisionSparks(Vector3 contactPoint, float intensity)
+    private void UpdateSpinEffects()
     {
-        if (collisionSparks == null)
+        if (trailEffect != null && controller != null)
         {
-            if (debugParticles)
-                Debug.LogError($"{gameObject.name}: CollisionSparks is null!");
-            return;
-        }
+            float rpmPercentage = controller.currentRPM / controller.stats.maxRPM;
 
-        if (intensity < minIntensityForSparks)
-        {
-            if (debugParticles)
-                Debug.Log($"{gameObject.name}: Intensity {intensity:F2} below threshold {minIntensityForSparks}");
-            return;
-        }
+            // Adjust trail intensity based on RPM
+            var emission = trailEffect.emission;
+            emission.rateOverTime = rpmPercentage * 20f;
 
-        // Posicionar el sistema de partículas en el punto de contacto
-        collisionSparks.transform.position = contactPoint;
-
-        // Configurar intensidad basada en la velocidad del impacto
-        float normalizedIntensity = Mathf.Clamp01(intensity / maxSparkIntensity);
-
-        // Calcular número de partículas
-        int sparkCount = Mathf.RoundToInt(Mathf.Lerp(minSparkCount, maxSparkCount, normalizedIntensity));
-
-        // Configurar parámetros dinámicamente
-        var main = collisionSparks.main;
-        main.startSpeed = Mathf.Lerp(4f, 12f, normalizedIntensity);
-        main.startSize = Mathf.Lerp(0.08f, 0.25f, normalizedIntensity);
-        main.startLifetime = Mathf.Lerp(0.3f, 0.8f, normalizedIntensity);
-
-        // Emitir partículas usando Emit()
-        collisionSparks.Emit(sparkCount);
-
-        if (debugParticles)
-        {
-            Debug.Log($"{gameObject.name}: Collision sparks - {sparkCount} particles at {contactPoint} " +
-                     $"with intensity {intensity:F2}");
+            var main = trailEffect.main;
+            main.startSpeed = rpmPercentage * 5f;
         }
     }
 
-    public void PlayTrailEffect(bool enable)
+    public void PlayCollisionSparks(Vector3 position, float intensity)
     {
-        if (trailParticles != null)
+        if (collisionEffect != null)
         {
-            if (enable)
-                trailParticles.Play();
-            else
-                trailParticles.Stop();
+            collisionEffect.transform.position = position;
+
+            var main = collisionEffect.main;
+            main.startSpeed = intensity * 3f;
+
+            var emission = collisionEffect.emission;
+            int burstCount = Mathf.RoundToInt(intensity * 15f);
+            emission.SetBursts(new ParticleSystem.Burst[]
+            {
+                new ParticleSystem.Burst(0f, (short)Mathf.Clamp(burstCount, 5, 50))
+            });
+
+            collisionEffect.Play();
+        }
+
+        if (sparkEffect != null)
+        {
+            sparkEffect.transform.position = position;
+            sparkEffect.Play();
         }
     }
 
-    private Color GetSparkColorByType(BeyBladeStats.BeyBladeType type)
+    public void PlayAttackEffect(float chargePercentage)
     {
-        switch (type)
+        if (attackEffect != null)
         {
-            case BeyBladeStats.BeyBladeType.Attack:
-                return attackSparks;
-            case BeyBladeStats.BeyBladeType.Defense:
-                return defenseSparks;
-            case BeyBladeStats.BeyBladeType.Agility:
-                return agilitySparks;
-            case BeyBladeStats.BeyBladeType.Balanced:
-                return balancedSparks;
-            default:
-                return Color.white;
+            var main = attackEffect.main;
+            main.startSize = Mathf.Lerp(0.2f, 0.8f, chargePercentage);
+            main.startSpeed = Mathf.Lerp(2f, 8f, chargePercentage);
+
+            var emission = attackEffect.emission;
+            int burstCount = Mathf.RoundToInt(chargePercentage * 30f + 10f);
+            emission.SetBursts(new ParticleSystem.Burst[]
+            {
+                new ParticleSystem.Burst(0f, (short)burstCount)
+            });
+
+            attackEffect.Play();
         }
     }
 
-    // Método para cambiar color dinámicamente (útil para power-ups)
-    public void SetSparkColor(Color newColor)
+    public void PlayDashEffect()
     {
-        if (collisionSparks != null)
+        if (dashEffect != null)
         {
-            var main = collisionSparks.main;
-            main.startColor = newColor;
+            dashEffect.Play();
+        }
+
+        // Intensify trail temporarily
+        if (speedTrail != null)
+        {
+            StartCoroutine(IntensifyTrail(1f));
         }
     }
 
-
-    [ContextMenu("Test Particles")]
-    public void TestParticles()
+    public void PlaySpecialEffect(SpecialType specialType)
     {
-        PlayCollisionSparks(transform.position, 5f);
+        if (specialEffect != null)
+        {
+            // Customize effect based on special type
+            var main = specialEffect.main;
+
+            switch (specialType)
+            {
+                case SpecialType.FireTrail:
+                    main.startColor = Color.red;
+                    break;
+                case SpecialType.ElectricDash:
+                    main.startColor = Color.cyan;
+                    break;
+                case SpecialType.StormBreaker:
+                    main.startColor = Color.white;
+                    break;
+            }
+
+            specialEffect.Play();
+        }
+    }
+
+    private IEnumerator IntensifyTrail(float duration)
+    {
+        if (speedTrail != null)
+        {
+            float originalWidth = speedTrail.startWidth;
+            speedTrail.startWidth *= 2f;
+
+            yield return new WaitForSeconds(duration);
+
+            speedTrail.startWidth = originalWidth;
+        }
+    }
+
+    public void StopAllEffects()
+    {
+        ParticleSystem[] allParticles = { trailEffect, sparkEffect, collisionEffect, attackEffect, dashEffect, specialEffect };
+
+        foreach (var ps in allParticles)
+        {
+            if (ps != null)
+                ps.Stop();
+        }
+
+        if (speedTrail != null)
+            speedTrail.enabled = false;
     }
 }
